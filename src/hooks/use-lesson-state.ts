@@ -18,12 +18,14 @@ interface LessonState {
   feedback: (GradeResult & { wasSkipped?: boolean }) | null;
   /** Current answer for the exercise at `index` — reset on advance */
   answer: unknown;
+  /** Exercises the user got wrong or skipped — later sent to the SM-2 review deck. */
+  wrongExercises: Exercise[];
 }
 
 type Action =
   | { type: "SET_ANSWER"; answer: unknown }
-  | { type: "SUBMIT"; result: GradeResult }
-  | { type: "SKIP" }
+  | { type: "SUBMIT"; result: GradeResult; exercise: Exercise }
+  | { type: "SKIP"; exercise: Exercise }
   | { type: "CONTINUE"; total: number };
 
 function reducer(state: LessonState, action: Action): LessonState {
@@ -40,6 +42,9 @@ function reducer(state: LessonState, action: Action): LessonState {
         hearts: nextHearts,
         correctCount: state.correctCount + (action.result.correct ? 1 : 0),
         wrongCount: state.wrongCount + (action.result.correct ? 0 : 1),
+        wrongExercises: action.result.correct
+          ? state.wrongExercises
+          : [...state.wrongExercises, action.exercise],
         phase: "feedback",
         feedback: action.result,
       };
@@ -50,6 +55,7 @@ function reducer(state: LessonState, action: Action): LessonState {
         ...state,
         skippedCount: state.skippedCount + 1,
         wrongCount: state.wrongCount + 1,
+        wrongExercises: [...state.wrongExercises, action.exercise],
         phase: "feedback",
         feedback: { correct: false, correctAnswerLabel: "", wasSkipped: true },
       };
@@ -78,6 +84,7 @@ export function useLessonState(quiz: LessonQuiz) {
     phase: "answering" as const,
     feedback: null,
     answer: null,
+    wrongExercises: [] as Exercise[],
   });
 
   const currentExercise: Exercise | null = state.index < total ? quiz.exercises[state.index] : null;
@@ -89,12 +96,13 @@ export function useLessonState(quiz: LessonQuiz) {
   const submit = useCallback(() => {
     if (!currentExercise) return;
     const result = grade(currentExercise, state.answer);
-    dispatch({ type: "SUBMIT", result });
+    dispatch({ type: "SUBMIT", result, exercise: currentExercise });
   }, [currentExercise, state.answer]);
 
   const skip = useCallback(() => {
-    dispatch({ type: "SKIP" });
-  }, []);
+    if (!currentExercise) return;
+    dispatch({ type: "SKIP", exercise: currentExercise });
+  }, [currentExercise]);
 
   const continueNext = useCallback(() => {
     dispatch({ type: "CONTINUE", total });

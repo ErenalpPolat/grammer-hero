@@ -31,10 +31,15 @@ model User {
   hearts           Int       @default(3)
   lastActivityDate DateTime? @db.Date
 
-  lessonProgress  LessonProgress[]
-  gameAttempts    GameAttempt[]
-  dailyActivities DailyActivity[]
-  reviewCards     ReviewCard[]
+  // League state (0=Bronz … 9=Elmas)
+  leagueTier Int @default(0)
+
+  lessonProgress     LessonProgress[]
+  gameAttempts       GameAttempt[]
+  dailyActivities    DailyActivity[]
+  reviewCards        ReviewCard[]
+  leagueMemberships  LeagueMembership[]
+  pushSubscriptions  PushSubscription[]
 
   @@index([updatedAt])
   @@index([totalXp(sort: Desc)])
@@ -103,4 +108,52 @@ model ReviewCard {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, nextReviewAt])
+}
+
+// 15-kişilik haftalık lig grubu. Finalize edildiğinde finalizedAt dolar.
+model LeagueGroup {
+  id          String    @id @default(cuid())
+  tier        Int // 0=Bronz … 9=Elmas
+  weekStart   DateTime  @db.Date // Pazartesi 00:00 UTC
+  finalizedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  members LeagueMembership[]
+
+  @@index([weekStart, tier])
+}
+
+// Web Push bildirim aboneliği — tarayıcı izni alındıktan sonra eklenir.
+// Endpoint tarayıcı tarafından üretilir ve globally unique'dir.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Bir kullanıcının belirli bir haftadaki grup üyeliği.
+// finalRank/outcome finalize sonrası dolar. notifiedAt = kullanıcı modalı gördü.
+model LeagueMembership {
+  id         String    @id @default(cuid())
+  groupId    String
+  userId     String
+  weeklyXp   Int       @default(0)
+  finalRank  Int?
+  outcome    String? // "promoted" | "demoted" | "stayed"
+  notifiedAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  group LeagueGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId, joinedAt(sort: Desc)])
+  @@index([groupId, weeklyXp(sort: Desc)])
 }

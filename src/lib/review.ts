@@ -105,3 +105,48 @@ export async function rateCardAction(input: {
 
   return { ok: true, nextIn: next.interval, hasMore: remainingDue > 0 };
 }
+
+export interface AddReviewCardsResult {
+  ok?: true;
+  added?: number;
+  error?: string;
+}
+
+/**
+ * Batch-insert review cards. De-duplicates by (front, back) against the user's existing
+ * deck — replaying the same wrong answer won't multiply the card.
+ * Called from quiz completion with wrong/skipped exercises.
+ */
+export async function addReviewCardsAction(input: {
+  cards: { front: string; back: string; hint?: string }[];
+}): Promise<AddReviewCardsResult> {
+  const session = await auth();
+  if (!session?.user?.id) return { error: "Oturum yok" };
+
+  const userId = session.user.id;
+  if (input.cards.length === 0) return { ok: true, added: 0 };
+
+  const fronts = input.cards.map((c) => c.front);
+  const existing = await prisma.reviewCard.findMany({
+    where: { userId, front: { in: fronts } },
+    select: { front: true, back: true },
+  });
+  const existingKey = new Set(existing.map((e) => `${e.front}\u0000${e.back}`));
+  const toCreate = input.cards.filter(
+    (c) => !existingKey.has(`${c.front}\u0000${c.back}`),
+  );
+
+  if (toCreate.length === 0) return { ok: true, added: 0 };
+
+  await prisma.reviewCard.createMany({
+    data: toCreate.map((c) => ({
+      userId,
+      front: c.front,
+      back: c.back,
+      hint: c.hint,
+    })),
+  });
+
+  revalidatePath("/review");
+  return { ok: true, added: toCreate.length };
+}

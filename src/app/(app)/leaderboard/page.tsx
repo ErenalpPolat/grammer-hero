@@ -1,22 +1,26 @@
 import { Medal, Trophy } from "lucide-react";
 import { LeaderboardRow } from "@/components/leaderboard/leaderboard-row";
+import { LeagueCard } from "@/components/leaderboard/league-card";
+import { LeagueStandings } from "@/components/leaderboard/league-standings";
+import { LeagueResultModal } from "@/components/feedback/league-result-modal";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getLeaderboard, type LeaderboardEntry } from "@/lib/leaderboard";
+import { getPendingLeagueResult, getUserLeagueStatus } from "@/lib/league";
 import { requireSessionUser } from "@/lib/session";
 
 export const metadata = { title: "Liderlik" };
 
 export default async function LeaderboardPage() {
   const user = await requireSessionUser();
-  const [weekly, monthly, allTime] = await Promise.all([
+  const [weekly, monthly, allTime, league, pendingResult] = await Promise.all([
     getLeaderboard({ window: "week", selfUserId: user.id, limit: 20 }),
     getLeaderboard({ window: "month", selfUserId: user.id, limit: 20 }),
     getLeaderboard({ window: "all", selfUserId: user.id, limit: 20 }),
+    getUserLeagueStatus(user.id),
+    getPendingLeagueResult(user.id),
   ]);
 
-  // Lig kart için all-time rank kullanılır (kullanıcının "main" sıralaması)
   const allTimeSelfRank = allTime.find((e) => e.isSelf)?.rank;
-  const weeklySelfRank = weekly.find((e) => e.isSelf)?.rank;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
@@ -25,39 +29,39 @@ export default async function LeaderboardPage() {
           <Trophy className="size-7 text-xp" /> Liderlik
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          XP&apos;ye göre sıralama. Her oyun bitirdiğinde sıralamada yükselirsin.
+          Haftalık lig + küresel XP sıralaması. Her oyun bitirdiğinde ilerlersin.
         </p>
       </header>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
-        <div className="flex items-center gap-3">
-          <span aria-hidden className="flex size-10 items-center justify-center rounded-full bg-accent text-xl">
-            🥈
-          </span>
-          <div>
-            <p className="font-semibold">Gümüş Lig</p>
-            <p className="text-xs text-muted-foreground">
-              {weeklySelfRank
-                ? `Bu hafta ${weeklySelfRank}. sırada · liglerde 5 gün kaldı`
-                : "Bu hafta sıralamada değilsin — bir ders bitir"}
-            </p>
-          </div>
-        </div>
-        <div className="text-right text-sm">
-          <p className="text-muted-foreground">Tüm zamanlar</p>
-          <p className="flex items-center justify-end gap-1 font-semibold">
-            <Medal className="size-4 text-primary" />
+      <div className="flex flex-col gap-3">
+        <LeagueCard
+          tier={league.tier}
+          selfRank={league.selfRank}
+          daysRemaining={league.daysRemaining}
+          inGroup={league.inGroup}
+        />
+        <div className="flex items-center justify-end gap-1 text-sm text-muted-foreground">
+          <Medal className="size-4 text-primary" aria-hidden />
+          Tüm zamanlar:{" "}
+          <span className="font-semibold text-foreground">
             {allTimeSelfRank ? `${allTimeSelfRank}. sırada` : "Henüz XP yok"}
-          </p>
+          </span>
         </div>
       </div>
 
-      <Tabs defaultValue="week">
-        <TabsList className="grid w-full grid-cols-3">
+      <Tabs defaultValue="league">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="league">Lig</TabsTrigger>
           <TabsTrigger value="week">Hafta</TabsTrigger>
           <TabsTrigger value="month">Ay</TabsTrigger>
           <TabsTrigger value="all">Tüm Zamanlar</TabsTrigger>
         </TabsList>
+        <TabsContent value="league">
+          <LeagueStandings
+            standings={league.standings}
+            tierIndex={league.tier.index}
+          />
+        </TabsContent>
         <TabsContent value="week">
           <LeaderboardList entries={weekly} window="week" />
         </TabsContent>
@@ -68,6 +72,8 @@ export default async function LeaderboardPage() {
           <LeaderboardList entries={allTime} window="all" />
         </TabsContent>
       </Tabs>
+
+      {pendingResult && <LeagueResultModal result={pendingResult} />}
     </div>
   );
 }

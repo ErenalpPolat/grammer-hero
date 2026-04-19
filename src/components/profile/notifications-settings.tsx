@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { Bell, BellOff, Send } from "lucide-react";
+import { useEffect, useState, useSyncExternalStore, useTransition } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  sendTestPushAction,
+  subscribeToPushAction,
+  unsubscribeFromPushAction,
+} from "@/lib/push";
 
 const STORAGE_KEY = "grammar-hero-notifications";
+const VAPID_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
 interface NotificationsState {
   dailyReminder: boolean;
@@ -30,24 +38,161 @@ function readState(): NotificationsState {
   }
 }
 
-export function NotificationsSettings() {
-  const [state, setState] = useState<NotificationsState>(DEFAULT);
-  const [hydrated, setHydrated] = useState(false);
+function subscribeToStorage(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
 
-  // Sync from localStorage on mount (avoid SSR mismatch)
-  if (!hydrated && typeof window !== "undefined") {
-    setHydrated(true);
-    setState(readState());
+function useNotificationsState(): NotificationsState {
+  return useSyncExternalStore(subscribeToStorage, readState, () => DEFAULT);
+}
+
+/** Convert VAPID public key (base64url) to Uint8Array for pushManager.subscribe. */
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+type PushStatus =
+  | { kind: "unsupported" }
+  | { kind: "denied" }
+  | { kind: "unsubscribed" }
+  | { kind: "subscribed"; endpoint: string }
+  | { kind: "loading" };
+
+export function NotificationsSettings() {
+  const state = useNotificationsState();
+  const [push, setPush] = useState<PushStatus>({ kind: "loading" });
+  const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    async function refreshPushStatus() {
+      if (
+        typeof window === "undefined" ||
+        !("serviceWorker" in navigator) ||
+        !("PushManager" in window)
+      ) {
+        setPush({ kind: "unsupported" });
+        return;
+      }
+      if (Notification.permission === "denied") {
+        setPush({ kind: "denied" });
+        return;
+      }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        setPush(sub ? { kind: "subscribed", endpoint: sub.endpoint } : { kind: "unsubscribed" });
+      } catch {
+        setPush({ kind: "unsubscribed" });
+      }
+    }
+    void refreshPushStatus();
+  }, []);
+
+  async function refreshPushStatus() {
+    if (
+      typeof window === "undefined" ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window)
+    ) {
+      setPush({ kind: "unsupported" });
+      return;
+    }
+    if (Notification.permission === "denied") {
+      setPush({ kind: "denied" });
+      return;
+    }
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      setPush(sub ? { kind: "subscribed", endpoint: sub.endpoint } : { kind: "unsubscribed" });
+    } catch {
+      setPush({ kind: "unsubscribed" });
+    }
   }
 
   const update = (next: Partial<NotificationsState>) => {
     const merged = { ...state, ...next };
-    setState(merged);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+      // Trigger useSyncExternalStore re-read in same tab
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
     } catch {
       // ignore storage errors
     }
+  };
+
+  const enablePush = () => {
+    if (!VAPID_KEY) {
+      toast.error("VAPID anahtarı ayarlı değil (NEXT_PUBLIC_VAPID_PUBLIC_KEY).");
+      return;
+    }
+    startTransition(async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") {
+          toast.error("Bildirim izni reddedildi");
+          await refreshPushStatus();
+          return;
+        }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_KEY),
+        });
+        const json = sub.toJSON() as {
+          endpoint: string;
+          keys: { p256dh: string; auth: string };
+        };
+        const result = await subscribeToPushAction(json);
+        if (result.error) {
+          toast.error(result.error);
+          await sub.unsubscribe().catch(() => {});
+          await refreshPushStatus();
+          return;
+        }
+        toast.success("Bildirimler açıldı");
+        setPush({ kind: "subscribed", endpoint: json.endpoint });
+      } catch (err) {
+        console.warn("[push] enable failed:", err);
+        toast.error("Bildirim açılamadı");
+      }
+    });
+  };
+
+  const disablePush = () => {
+    startTransition(async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await unsubscribeFromPushAction(sub.endpoint);
+          await sub.unsubscribe().catch(() => {});
+        }
+        toast.success("Bildirimler kapatıldı");
+        setPush({ kind: "unsubscribed" });
+      } catch (err) {
+        console.warn("[push] disable failed:", err);
+        toast.error("Bildirim kapatılamadı");
+      }
+    });
+  };
+
+  const testPush = () => {
+    startTransition(async () => {
+      const result = await sendTestPushAction();
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Test bildirimi gönderildi");
+      }
+    });
   };
 
   return (
@@ -102,10 +247,77 @@ export function NotificationsSettings() {
         />
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        ⚠ Tarayıcı bildirimleri için Service Worker kurulumu gerekli — şu an sadece
-        tercihler kaydediliyor.
-      </p>
+      <div className="space-y-3 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <Label className="text-sm font-medium">Tarayıcı bildirimleri</Label>
+            <p className="text-xs text-muted-foreground">
+              {pushStatusText(push)}
+            </p>
+          </div>
+          <PushActionButton push={push} pending={pending} onEnable={enablePush} onDisable={disablePush} />
+        </div>
+
+        {push.kind === "subscribed" && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={testPush}
+            disabled={pending}
+            className="w-full"
+          >
+            <Send className="size-4" /> Test bildirimi gönder
+          </Button>
+        )}
+      </div>
     </div>
+  );
+}
+
+function pushStatusText(push: PushStatus): string {
+  switch (push.kind) {
+    case "loading":
+      return "Kontrol ediliyor…";
+    case "unsupported":
+      return "Bu tarayıcı web push'u desteklemiyor.";
+    case "denied":
+      return "Bildirim izni reddedildi. Tarayıcı ayarlarından tekrar izin ver.";
+    case "unsubscribed":
+      return "Kapalı — aç ve istediğin zaman test et.";
+    case "subscribed":
+      return "Açık — hatırlatıcılar gelebilir.";
+  }
+}
+
+function PushActionButton({
+  push,
+  pending,
+  onEnable,
+  onDisable,
+}: {
+  push: PushStatus;
+  pending: boolean;
+  onEnable: () => void;
+  onDisable: () => void;
+}) {
+  if (push.kind === "loading" || push.kind === "unsupported" || push.kind === "denied") {
+    return (
+      <Button type="button" variant="outline" size="sm" disabled>
+        <Bell className="size-4" /> Aç
+      </Button>
+    );
+  }
+  if (push.kind === "subscribed") {
+    return (
+      <Button type="button" variant="outline" size="sm" onClick={onDisable} disabled={pending}>
+        <BellOff className="size-4" /> Kapat
+      </Button>
+    );
+  }
+  return (
+    <Button type="button" size="sm" onClick={onEnable} disabled={pending}>
+      <Bell className="size-4" /> Aç
+    </Button>
   );
 }

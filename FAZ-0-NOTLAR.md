@@ -607,53 +607,53 @@ View Transitions API tüm modern browser'larda destek var (Safari'de animation f
 ## FAZ 1'E GEÇMEDEN ÖNCE YAPILACAKLAR
 
 ### ✓ Environment Setup
-- [ ] Node.js 20.9+ yüklü mü? (`node -v`)
-- [ ] `npm install` veya `pnpm install` çalıştı mı?
-- [ ] `.env.local` dosyası oluşturuldu ve gerekli vars dolduruldu?
-- [ ] DATABASE_URL set edildi (PostgreSQL, SQLite, vs)?
-- [ ] NEXTAUTH_SECRET generate edildi?
+- [x] Node.js 20.9+ yüklü mü? (`node -v`)
+- [x] `npm install` veya `pnpm install` çalıştı mı?
+- [x] `.env.local` dosyası oluşturuldu ve gerekli vars dolduruldu?
+- [x] DATABASE_URL set edildi (PostgreSQL, SQLite, vs)?
+- [x] NEXTAUTH_SECRET generate edildi?
 
 ### ✓ Type Generation
-- [ ] `npx next typegen` çalıştırıldı mı? (PageProps, LayoutProps tiplemeleri)
-- [ ] tsconfig.json TypeScript 5+ için yapılandırılmış?
-- [ ] `next-env.d.ts` auto-generated mi?
+- [x] `npx next typegen` çalıştırıldı mı? (PageProps, LayoutProps tiplemeleri)
+- [x] tsconfig.json TypeScript 5+ için yapılandırılmış?
+- [x] `next-env.d.ts` auto-generated mi?
 
 ### ✓ Prisma Setup
-- [ ] `npx prisma migrate dev --name init` çalıştırıldı?
-- [ ] `npx prisma generate` (Prisma Client oluşturuldu)?
-- [ ] Database connection test edildi?
+- [x] `npx prisma migrate dev --name init` çalıştırıldı?
+- [x] `npx prisma generate` (Prisma Client oluşturuldu)?
+- [x] Database connection test edildi?
 
 ### ✓ Tailwind v4 Setup
-- [ ] `postcss.config.mjs` var ve `@tailwindcss/postcss` plugin'i var mı?
-- [ ] `app/globals.css` dosyasında `@import 'tailwindcss'` var mı?
-- [ ] Root layout'ta globals.css import edildi?
+- [x] `postcss.config.mjs` var ve `@tailwindcss/postcss` plugin'i var mı?
+- [x] `app/globals.css` dosyasında `@import 'tailwindcss'` var mı?
+- [x] Root layout'ta globals.css import edildi?
 
 ### ✓ NextAuth v5 Setup
-- [ ] `auth.ts` (auth config) oluşturuldu?
-- [ ] Credentials provider configured mi?
-- [ ] Prisma Adapter ([auth/prisma-adapter](https://authjs.dev/reference/adapters/prisma)) setup edildi?
-- [ ] Callback functions (signIn, jwt, etc) tanımlandı?
-- [ ] `NEXTAUTH_SECRET` env var'da random string? (`openssl rand -base64 32`)
+- [x] `auth.ts` (auth config) oluşturuldu?
+- [x] Credentials provider configured mi?
+- [x] Prisma Adapter ([auth/prisma-adapter](https://authjs.dev/reference/adapters/prisma)) setup edildi?
+- [x] Callback functions (signIn, jwt, etc) tanımlandı?
+- [x] `NEXTAUTH_SECRET` env var'da random string? (`openssl rand -base64 32`)
 
 ### ✓ Codemod Runs
-- [ ] `npx @next/codemod upgrade latest` çalıştırıldı ve template'te changes review edildi?
-- [ ] Middleware varsa `npx @next/codemod middleware-to-proxy .` çalıştırıldı?
+- [x] `npx @next/codemod upgrade latest` çalıştırıldı ve template'te changes review edildi?
+- [x] Middleware varsa `npx @next/codemod middleware-to-proxy .` çalıştırıldı?
 
 ### ✓ Development Server
-- [ ] `npm run dev` çalıştırıldı?
-- [ ] http://localhost:3000 erişilebiliyor?
-- [ ] Console'da error yok?
-- [ ] Turbopack default çalışıyor (webpack değil)?
+- [x] `npm run dev` çalıştırıldı?
+- [x] http://localhost:3000 erişilebiliyor?
+- [x] Console'da error yok?
+- [x] Turbopack default çalışıyor (webpack değil)?
 
 ### ✓ Version Verification
-- [ ] `next version` → 16.2.4?
-- [ ] `cat package.json` → react 19.2.4, next-auth 5.0.0-beta.31?
-- [ ] `cat package.json` → tailwindcss 4, prisma 7.7.0?
+- [x] `next version` → 16.2.4?
+- [x] `cat package.json` → react 19.2.4, next-auth 5.0.0-beta.31?
+- [x] `cat package.json` → tailwindcss 4, prisma 7.7.0?
 
 ### ✓ Initial Build
-- [ ] `npm run build` başarılı mu?
-- [ ] `.next` folder oluştu ve file'lar var mı?
-- [ ] Build warnings'leri check (deprecated API usage vs)?
+- [x] `npm run build` başarılı mu?
+- [x] `.next` folder oluştu ve file'lar var mı?
+- [x] Build warnings'leri check (deprecated API usage vs)?
 
 ---
 

@@ -10,9 +10,11 @@ import { FeedbackPanel } from "./feedback-panel";
 import { GameHost, isAnswerReady } from "./game-host";
 import { Button } from "@/components/ui/button";
 import { EventModalQueue, type QuizEventData } from "@/components/feedback/event-modal-queue";
-import { GAME_TYPE_LABELS, type LessonQuiz } from "@/lib/exercise/types";
+import { exercisesToReviewCards } from "@/lib/exercise/to-review-card";
+import { GAME_TYPE_LABELS, type Exercise, type LessonQuiz } from "@/lib/exercise/types";
 import { starsFromAccuracy } from "@/lib/exercise/xp";
 import { recordQuizCompletionAction } from "@/lib/progress";
+import { addReviewCardsAction } from "@/lib/review";
 import { useLessonState } from "@/hooks/use-lesson-state";
 import { cn } from "@/lib/utils";
 
@@ -59,6 +61,7 @@ export function QuizArena({ quiz, exitHref, lessonDetailHref }: QuizArenaProps) 
         wrongCount={state.wrongCount}
         heartsLeft={state.hearts}
         heartsMax={state.heartsMax}
+        wrongExercises={state.wrongExercises}
         lessonDetailHref={lessonDetailHref}
       />
     );
@@ -112,6 +115,7 @@ function CompleteScreen({
   wrongCount,
   heartsLeft,
   heartsMax,
+  wrongExercises,
   lessonDetailHref,
 }: {
   quiz: LessonQuiz;
@@ -124,6 +128,7 @@ function CompleteScreen({
   wrongCount: number;
   heartsLeft: number;
   heartsMax: number;
+  wrongExercises: Exercise[];
   lessonDetailHref: string;
 }) {
   const stars = starsFromAccuracy(accuracyPct);
@@ -133,37 +138,44 @@ function CompleteScreen({
         status: "saved";
         newBest?: boolean;
         streak?: number;
+        reviewAdded?: number;
         events: QuizEventData;
       }
     | { status: "error"; message: string }
   >({ status: "saving" });
 
-  // Fire once on mount — record the attempt
+  // Fire once on mount — record the attempt + push wrong answers into the review deck.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const result = await recordQuizCompletionAction({
-        lessonId: quiz.lessonId,
-        gameType: quiz.gameType,
-        correctCount,
-        wrongCount,
-        totalQuestions: quiz.exercises.length,
-        heartsLeft,
-        heartsMax,
-        xpEarned: xpTotal,
-      });
+      const [completion, reviewResult] = await Promise.all([
+        recordQuizCompletionAction({
+          lessonId: quiz.lessonId,
+          gameType: quiz.gameType,
+          correctCount,
+          wrongCount,
+          totalQuestions: quiz.exercises.length,
+          heartsLeft,
+          heartsMax,
+          xpEarned: xpTotal,
+        }),
+        wrongExercises.length > 0
+          ? addReviewCardsAction({ cards: exercisesToReviewCards(wrongExercises) })
+          : Promise.resolve({ ok: true as const, added: 0 }),
+      ]);
       if (cancelled) return;
-      if (result.error) {
-        setSaveState({ status: "error", message: result.error });
+      if (completion.error) {
+        setSaveState({ status: "error", message: completion.error });
       } else {
         setSaveState({
           status: "saved",
-          newBest: result.newBest,
-          streak: result.user?.currentStreak,
+          newBest: completion.newBest,
+          streak: completion.user?.currentStreak,
+          reviewAdded: "added" in reviewResult ? reviewResult.added : 0,
           events: {
-            levelUp: result.levelUp,
-            streakBroken: result.streakBroken,
-            goalReached: result.goalReached,
+            levelUp: completion.levelUp,
+            streakBroken: completion.streakBroken,
+            goalReached: completion.goalReached,
           },
         });
       }
@@ -234,6 +246,7 @@ function SaveStatus({
         status: "saved";
         newBest?: boolean;
         streak?: number;
+        reviewAdded?: number;
         events: QuizEventData;
       }
     | { status: "error"; message: string };
@@ -258,6 +271,11 @@ function SaveStatus({
       {state.streak != null && state.streak > 0 && (
         <span className="inline-flex items-center gap-1 rounded-pill bg-streak/20 px-3 py-1 font-semibold text-streak motion-safe:animate-in motion-safe:zoom-in-50">
           🔥 Streak: {state.streak} gün
+        </span>
+      )}
+      {state.reviewAdded != null && state.reviewAdded > 0 && (
+        <span className="inline-flex items-center gap-1 rounded-pill bg-primary/15 px-3 py-1 font-semibold text-primary motion-safe:animate-in motion-safe:zoom-in-50">
+          🧠 Tekrar defterine {state.reviewAdded} kart
         </span>
       )}
     </div>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { gemsForQuiz, levelFromXp, starsFromAccuracy } from "@/lib/exercise/xp";
+import { addLeagueXp } from "@/lib/league";
 import { computeNewStreak } from "@/lib/streak";
 import { startOfDay } from "@/lib/date";
 import type { GameType } from "@/lib/exercise/types";
@@ -159,7 +160,7 @@ export async function recordQuizCompletionAction(
       },
     });
 
-    const updatedUser = await tx.user.update({
+    await tx.user.update({
       where: { id: userId },
       data: {
         totalXp: newTotalXp,
@@ -169,6 +170,15 @@ export async function recordQuizCompletionAction(
         gems: user.gems + gems,
         lastActivityDate: todayStart,
       },
+    });
+
+    // Lig XP: önceki haftaları finalize et + current-week membership ensure + increment.
+    // Burada çağrı yeri önemli — user.update'ten sonra (leagueTier finalize sırasında değişebilir,
+    // ve podium gems user.gems'e ekleniyor). addLeagueXp kendi tier okuması yapıyor.
+    await addLeagueXp(tx, userId, input.xpEarned);
+
+    const updatedUser = await tx.user.findUniqueOrThrow({
+      where: { id: userId },
       select: {
         totalXp: true,
         currentLevel: true,

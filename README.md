@@ -178,8 +178,8 @@ production'da çalışmaz.
 - [ ] `NEXT_PUBLIC_SITE_URL` doğru production domain
 - [ ] DB pooled connection (serverless için kritik)
 - [ ] `pnpm build` clean (warning yok)
-- [ ] `pnpm test` 50/50 passing
-- [ ] `pnpm lint` 0 error
+- [x] `pnpm test` 70/70 passing
+- [x] `pnpm lint` 0 error
 - [ ] HTTPS enabled
 - [ ] Lighthouse audit (Perf ≥ 90, A11y ≥ 95, SEO 100)
 
@@ -192,11 +192,11 @@ production'da çalışmaz.
 - [x] Auth · Onboarding · Profile · Leaderboard · Practice · Review
 - [x] LevelUp + StreakBroken + GoalReached modallar
 - [x] Karanlık mod · skip link · sitemap/robots · manifest · JSON-LD
-- [ ] Service Worker (offline + push)
-- [ ] Gerçek SM-2 spaced repetition
-- [ ] Lig sistemi (Bronze → Diamond)
-- [ ] 5+ ek ünite (Future · Perfect · Modal · Conditional · Passive)
-- [ ] E2E tests (Playwright)
+- [x] Service Worker (offline + push)
+- [x] Gerçek SM-2 spaced repetition (quiz yanlışları otomatik deck'e)
+- [x] Lig sistemi — 10 tier Bronz → Elmas, haftalık 15 kişilik gruplar
+- [x] 14 ek ünite (Future · Perfect · Modal · Conditional · Passive + Past Cont/Perfect · Used to · Comparatives · Articles · Question Tags + Reported Speech · Relative Clauses · Gerunds/Infinitives · Phrasal Verbs) — toplam 17 ünite, 102 ders
+- [x] E2E tests (Playwright · 15 test · smoke + auth + protected + quiz)
 
 ---
 
