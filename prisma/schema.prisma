@@ -1,0 +1,106 @@
+// Grammar Hero — Prisma v7 schema (Faz 7: auth + onboarding)
+// Schema'ya ders/egzersiz/streak kalıcılaştırma tabloları Faz 8+'da eklenecek.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id // deterministic: "user_" + slugify(name)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Onboarding (null until each step finished)
+  onboardingCompleted Boolean @default(false)
+  targetLanguage      String? // "en" | "de" | "es" | "fr" | "it" | "ja"
+  level               String? // "newbie" | "a1-a2" | "b1-b2" | "c1-plus"
+  dailyGoalMinutes    Int? // 5 | 10 | 15 | 20
+
+  // Gamification state
+  totalXp          Int       @default(0)
+  currentLevel     Int       @default(1)
+  currentStreak    Int       @default(0)
+  longestStreak    Int       @default(0)
+  gems             Int       @default(0)
+  hearts           Int       @default(3)
+  lastActivityDate DateTime? @db.Date
+
+  lessonProgress  LessonProgress[]
+  gameAttempts    GameAttempt[]
+  dailyActivities DailyActivity[]
+  reviewCards     ReviewCard[]
+
+  @@index([updatedAt])
+  @@index([totalXp(sort: Desc)])
+}
+
+model LessonProgress {
+  id               String    @id @default(cuid())
+  userId           String
+  lessonId         String
+  bestScore        Int       @default(0) // 0-100
+  attempts         Int       @default(0)
+  firstCompletedAt DateTime?
+  lastAttemptAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+}
+
+model GameAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  lessonId     String
+  gameType     String
+  score        Int
+  correctCount Int
+  wrongCount   Int
+  heartsLeft   Int
+  xpEarned     Int
+  completedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, completedAt(sort: Desc)])
+}
+
+model DailyActivity {
+  id               String   @id @default(cuid())
+  userId           String
+  date             DateTime @db.Date
+  lessonsCompleted Int      @default(0)
+  xpEarned         Int      @default(0)
+  minutesSpent     Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model ReviewCard {
+  id             String   @id @default(cuid())
+  userId         String
+  front          String
+  back           String
+  hint           String?
+  // SM-2 state
+  easinessFactor Float    @default(2.5)
+  interval       Int      @default(1) // days until next review
+  repetitions    Int      @default(0)
+  nextReviewAt   DateTime @default(now())
+  createdAt      DateTime @default(now())
+  lastReviewedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, nextReviewAt])
+}
